@@ -15,6 +15,11 @@ mod domain;
 mod handlers;
 mod routes_configure;
 
+#[macro_use]
+extern crate diesel_migrations;
+use diesel_migrations::{EmbedMigrations, embed_migrations};
+embed_migrations!();
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv::dotenv().ok();
@@ -23,6 +28,10 @@ async fn main() -> std::io::Result<()> {
     let database_url = configuration::env_database_url();
 
     let db_pool = DbPool::new(ConnectionManager::new(database_url)).unwrap();
+    // Apply migrations
+    println!("Running migration...");
+    embedded_migrations::run_with_output(&db_pool.get().unwrap(), &mut std::io::stdout());
+
     let db_service = DbService::new(db_pool.clone());
 
     let jwt_config_data = Data::new(configuration::load_jwt_config());

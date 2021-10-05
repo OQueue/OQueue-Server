@@ -32,7 +32,7 @@ impl FromRequest for Auth {
 
 pub struct JwtConfig {
     pub encoding_key: EncodingKey,
-    pub decoding_key: DecodingKey<'static>,
+    pub decoding_key: DecodingKey,
 }
 
 impl JwtConfig {
@@ -50,7 +50,7 @@ pub fn decode_token(token: &str, config: &JwtConfig) -> jsonwebtoken::errors::Re
     let JwtConfig { decoding_key, .. } = config;
 
     let mut validation = {
-        let mut v = Validation::default();
+        let mut v = Validation::new(Algorithm::EdDSA);
         // TODO: use exp
         v.validate_exp = false;
         v
