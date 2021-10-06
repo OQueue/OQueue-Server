@@ -54,12 +54,12 @@ async fn main() -> std::io::Result<()> {
 
 pub fn configure_routes(cfg: &mut web::ServiceConfig) {
     cfg.service(
-        web::scope("/sign")
-            .route("/up", web::post().to(handlers::sign_up))
-            .route("/in", web::post().to(handlers::sign_in)),
+        web::scope("/auth")
+            .route("/signup", web::post().to(handlers::sign_up))
+            .route("/signin", web::post().to(handlers::sign_in)),
     )
     .service(
-        web::scope("/v0")
+        web::scope("/api")
             .wrap(HttpAuthentication::bearer(crate::auth::bearer_validator))
             .route("/users/{user_id}", web::get().to(handlers::user))
             .route("/queues", web::post().to(handlers::queue_create))
