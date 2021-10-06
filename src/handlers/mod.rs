@@ -99,12 +99,12 @@ pub async fn sign_in(
     req: HttpRequest,
     db: Data<DbService>,
     data: Json<SignIn>,
-) -> RespResult<String> {
-    let SignIn { email, password } = data.0;
+) -> RespResult<Json<SignInResponse>> {
+    let SignIn { login, password } = data.0;
 
     const ILLEGAL_LOGIN_INFO_MSG: &str = "Illegal login or password.";
     let user = db
-        .user_by_email(&email)?
+        .user_by_email(&login)?
         .ok_or_else(|| ErrorBadRequest(ILLEGAL_LOGIN_INFO_MSG))?;
 
     let pass_is_correct = bcrypt::verify(password, &user.pwhash).map_err(|e| {
@@ -126,7 +126,7 @@ pub async fn sign_in(
         let jwt_config = req.app_data::<Data<JwtConfig>>().unwrap().get_ref();
         let token = crate::auth::encode_token(&auth, jwt_config)
             .map_err(|_e| ErrorInternalServerError(""))?;
-        Ok(token)
+        Ok(Json(SignInResponse { token }))
     } else {
         Err(ErrorBadRequest(ILLEGAL_LOGIN_INFO_MSG))
     }
@@ -161,7 +161,6 @@ pub async fn queue_create(
     let CreateQueue {
         name,
         description,
-        add_organizer,
     } = data.0;
 
     let now = Utc::now().naive_utc();
