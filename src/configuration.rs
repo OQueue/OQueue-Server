@@ -6,6 +6,10 @@ pub fn env_database_url() -> String {
     env::var("DATABASE_URL").expect("DATABASE_URL must be set")
 }
 
+pub fn env_host() -> Option<String> {
+    env::var("HOST").ok()
+}
+
 pub fn env_encoding_key() -> String {
     env::var("JWT_ENCODING_KEY").expect("JWT_ENCODING_KEY must be set")
 }

@@ -26,6 +26,8 @@ async fn main() -> std::io::Result<()> {
     env_logger::init();
 
     let database_url = configuration::env_database_url();
+    let host_url = configuration::env_host().unwrap_or_else(|| "127.0.0.1:8080".to_string());
+    let jwt_config_data = Data::new(configuration::load_jwt_config());
 
     let db_pool = DbPool::new(ConnectionManager::new(database_url)).unwrap();
     // Apply migrations
@@ -34,7 +36,6 @@ async fn main() -> std::io::Result<()> {
 
     let db_service = DbService::new(db_pool.clone());
 
-    let jwt_config_data = Data::new(configuration::load_jwt_config());
 
     HttpServer::new(move || {
         App::new()
@@ -48,7 +49,7 @@ async fn main() -> std::io::Result<()> {
             .configure(routes_configure::configure_sign)
             .route("/ping", web::get().to(handlers::ping))
     })
-    .bind("127.0.0.1:8080")?
+    .bind(&host_url)?
     .run()
     .await
 }
