@@ -54,8 +54,7 @@ pub struct QueueInfo {
     pub id: Uuid,
     pub name: String,
     pub description: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub organizer_id: Option<Uuid>,
+    pub organizer_id: Uuid,
     pub created_at: NaiveDateTime,
     pub exists_before: NaiveDateTime,
 }

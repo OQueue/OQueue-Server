@@ -70,6 +70,16 @@ pub fn queues_with_member(conn: &DbConnection, user_id: &Uuid) -> QueryResult<Ve
     queues.map(|v| v.into_iter().map(|(q, _)| q).collect())
 }
 
+pub fn available_queues(conn: &DbConnection, user_id: &Uuid) -> QueryResult<Vec<QueueDao>> {
+    use crate::db::schema::*;
+    let queues = queues::table
+        .inner_join(queue_entries::table)
+        .filter(queue_entries::user_id.eq(user_id))
+        .or_filter(queues::organizer_id.eq(user_id))
+        .load::<(QueueDao, QueueEntryDao)>(conn);
+    queues.map(|v| v.into_iter().map(|(q, _)| q).collect())
+}
+
 // ------------
 // QueueMembers
 // ------------

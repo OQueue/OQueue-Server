@@ -112,6 +112,11 @@ impl DbService {
         Ok(actions::queues_with_member(conn, user_id)?)
     }
 
+    pub fn available_queues(&self, user_id: &Uuid) -> Result<Vec<QueueDao>> {
+        let conn = &*self.conn()?;
+        Ok(actions::available_queues(conn, user_id)?)
+    }
+
     // ------------
     // QueueEntry
     // ------------

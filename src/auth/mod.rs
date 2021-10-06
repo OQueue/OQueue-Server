@@ -17,9 +17,9 @@ pub struct Auth {
 }
 
 impl FromRequest for Auth {
+    type Config = ();
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;
-    type Config = ();
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload<PayloadStream>) -> Self::Future {
         let auth = req

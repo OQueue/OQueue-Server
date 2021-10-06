@@ -14,7 +14,7 @@ table! {
         id -> Uuid,
         name -> Varchar,
         description -> Text,
-        organizer_id -> Nullable<Uuid>,
+        organizer_id -> Uuid,
         created_at -> Timestamp,
         exists_before -> Timestamp,
     }

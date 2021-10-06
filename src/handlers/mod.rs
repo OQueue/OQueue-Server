@@ -2,7 +2,7 @@ use std::ops::{Add, Sub};
 use std::time::{Duration, UNIX_EPOCH};
 
 use actix_web::error::*;
-use actix_web::web::{Data, Json};
+use actix_web::web::{Data, Json, Path};
 use actix_web::{HttpRequest, Responder};
 use chrono::{FixedOffset, NaiveDateTime, Utc};
 use log::{debug, error, info};
@@ -72,9 +72,10 @@ pub async fn sign_up(db: Data<DbService>, data: Json<SignUp>) -> RespResult<impl
     let is_exist = db.has_user_with_email(&email)?;
 
     if is_exist {
-        return Err(ErrorBadRequest(
-            "Пользователь с такой почтой уже существует.",
-        ));
+        return Err(ErrorBadRequest(format!(
+            "User with this email {} already registered.",
+            &email
+        )));
     }
 
     // Создаем и добавляем нового пользователя
@@ -131,13 +132,8 @@ pub async fn sign_in(
     }
 }
 
-pub async fn user_by_id(
-    _auth: Auth,
-    db: Data<DbService>,
-    data: Json<GetUserInfo>,
-) -> impl Responder {
-    let user_id = data.id;
-    db.user_by_id(&user_id)?
+pub async fn me(auth: Auth, db: Data<DbService>) -> impl Responder {
+    db.user_by_id(&auth.id)?
         .ok_or(ErrorBadRequest("User with this id is not found"))
         .map(|dao| {
             let UserDao { id, name, .. } = dao;
@@ -146,7 +142,18 @@ pub async fn user_by_id(
         .map(|x| Json(x))
 }
 
-pub async fn create_queue(
+pub async fn user(user_id: Path<Uuid>, db: Data<DbService>) -> impl Responder {
+    let user_id = user_id.as_ref();
+    db.user_by_id(user_id)?
+        .ok_or(ErrorBadRequest("User with this id is not found"))
+        .map(|dao| {
+            let UserDao { id, name, .. } = dao;
+            UserInfo { id, name }
+        })
+        .map(|x| Json(x))
+}
+
+pub async fn queue_create(
     auth: Auth,
     db: Data<DbService>,
     data: Json<CreateQueue>,
@@ -165,11 +172,7 @@ pub async fn create_queue(
         id: queue_id,
         name,
         description,
-        organizer_id: if add_organizer {
-            Some(auth.id.clone())
-        } else {
-            None
-        },
+        organizer_id: auth.id.clone(),
         created_at: now,
         exists_before: Utc::now().add(chrono::Duration::days(365 * 2)).naive_utc(),
     };
@@ -188,19 +191,19 @@ pub async fn create_queue(
     Ok("")
 }
 
-pub async fn delete_queue(
+pub async fn queue_delete(
     auth: Auth,
+    queue_id: Path<Uuid>,
     db: Data<DbService>,
-    data: Json<DeleteQueue>,
 ) -> impl Responder {
-    let queue_id = data.id;
+    let queue_id = queue_id.into_inner();
 
     let queue = match db.queue_by_id(&queue_id)? {
         Some(q) => q,
         None => return Err(ErrorBadRequest("Queue is not exist")),
     };
 
-    if queue.organizer_id.is_none() || queue.organizer_id.unwrap() != auth.id {
+    if queue.organizer_id != auth.id {
         return Err(ErrorBadRequest("You is not queue organiser."));
     }
 
@@ -208,12 +211,12 @@ pub async fn delete_queue(
     Ok("")
 }
 
-pub async fn queue_by_id(
+pub async fn queue_get_info(
     _auth: Auth,
+    queue_id: Path<Uuid>,
     db: Data<DbService>,
-    data: Json<GetQueue>,
 ) -> RespResult<Json<QueueInfo>> {
-    let queue_id = data.id;
+    let queue_id = queue_id.into_inner();
 
     let queue = db
         .queue_by_id(&queue_id)?
@@ -238,9 +241,9 @@ pub async fn queue_by_id(
     }))
 }
 
-pub async fn my_queues(auth: Auth, db: Data<DbService>) -> RespResult<Json<Vec<QueueInfo>>> {
+pub async fn queues(auth: Auth, db: Data<DbService>) -> RespResult<Json<Vec<QueueInfo>>> {
     let queue_infos = db
-        .queues_with_member(&auth.id)?
+        .available_queues(&auth.id)?
         .into_iter()
         .map(|dao| {
             let QueueDao {
@@ -264,12 +267,12 @@ pub async fn my_queues(auth: Auth, db: Data<DbService>) -> RespResult<Json<Vec<Q
     Ok(Json(queue_infos))
 }
 
-pub async fn get_members(
+pub async fn queue_members(
     _auth: Auth,
+    queue_id: Path<Uuid>,
     db: Data<DbService>,
-    req: Json<GetMembers>,
 ) -> RespResult<Json<Vec<MemberInfo>>> {
-    let queue_id = req.id;
+    let queue_id = queue_id.into_inner();
 
     let entries = db.entries_ordered(&queue_id)?;
 
@@ -298,16 +301,10 @@ pub async fn get_members(
     Ok(Json(entries))
 }
 
-pub async fn join_to_queue(
-    me: Auth,
-    db: Data<DbService>,
-    req: Json<JoinToQueue>,
-) -> RespResult<&'static str> {
-    let queue_id = req.id;
-
+async fn queue_join_inner(db: Data<DbService>, queue_id: Uuid, user_id: Uuid) -> RespResult<&'static str> {
     let entry = QueueEntryToAdd {
         queue_id,
-        user_id: me.id,
+        user_id,
         has_priority: false,
         joined_at: Utc::now().naive_utc(),
     };
@@ -316,14 +313,46 @@ pub async fn join_to_queue(
     Ok("")
 }
 
-pub async fn leave_from_queue(
+pub async fn queue_add_member(
+    _me: Auth,
+    db: Data<DbService>,
+    in_path: Path<(Uuid, Uuid)>,
+) -> RespResult<&'static str> {
+    let (queue_id, user_id) = in_path.into_inner();
+    queue_join_inner(db, queue_id, user_id).await
+}
+
+pub async fn queue_add_member_me(
     me: Auth,
     db: Data<DbService>,
-    req: Json<LeaveFromQueue>,
+    in_path: Path<Uuid>,
 ) -> RespResult<&'static str> {
-    let queue_id = req.id;
+    let queue_id = in_path.into_inner();
+    queue_join_inner(db, queue_id, me.id).await
+}
 
-    db.delete_entry(&queue_id, &me.id)?;
 
+async fn queue_remove_member_inner(db: Data<DbService>, queue_id: Uuid, user_id: Uuid) -> RespResult<&'static str> {
+    db.delete_entry(&queue_id, &user_id)?;
     Ok("")
 }
+
+pub async fn queue_remove_member_me(
+    me: Auth,
+    db: Data<DbService>,
+    queue_id: Path<Uuid>,
+) -> RespResult<&'static str> {
+    let queue_id = queue_id.into_inner();
+    queue_remove_member_inner(db, queue_id, me.id).await
+}
+
+pub async fn queue_remove_member(
+    _me: Auth,
+    db: Data<DbService>,
+    in_path: Path<(Uuid, Uuid)>,
+) -> RespResult<&'static str> {
+    let (queue_id, user_id) = in_path.into_inner();
+    queue_remove_member_inner(db, queue_id, user_id).await
+}
+
+
