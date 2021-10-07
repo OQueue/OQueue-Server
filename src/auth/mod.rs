@@ -50,7 +50,7 @@ pub fn decode_token(token: &str, config: &JwtConfig) -> jsonwebtoken::errors::Re
     let JwtConfig { decoding_key, .. } = config;
 
     let mut validation = {
-        let mut v = Validation::new(Algorithm::EdDSA);
+        let mut v = Validation::new(Algorithm::HS256);
         // TODO: use exp
         v.validate_exp = false;
         v
