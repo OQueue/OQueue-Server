@@ -33,24 +33,14 @@ impl FromRequest for Auth {
 pub struct JwtConfig {
     pub encoding_key: EncodingKey,
     pub decoding_key: DecodingKey,
-}
-
-impl JwtConfig {
-    pub fn default_from_base64_secret(secret: &str) -> Self {
-        let encoding_key = EncodingKey::from_base64_secret(secret).unwrap();
-        let decoding_key = DecodingKey::from_base64_secret(secret).unwrap();
-        Self {
-            encoding_key,
-            decoding_key,
-        }
-    }
+    pub algorithm: Algorithm,
 }
 
 pub fn decode_token(token: &str, config: &JwtConfig) -> jsonwebtoken::errors::Result<Auth> {
-    let JwtConfig { decoding_key, .. } = config;
+    let JwtConfig { decoding_key, algorithm, .. } = config;
 
     let mut validation = {
-        let mut v = Validation::new(Algorithm::HS256);
+        let mut v = Validation::new(*algorithm);
         // TODO: use exp
         v.validate_exp = false;
         v
@@ -62,10 +52,8 @@ pub fn decode_token(token: &str, config: &JwtConfig) -> jsonwebtoken::errors::Re
 }
 
 pub fn encode_token(auth: &Auth, config: &JwtConfig) -> jsonwebtoken::errors::Result<String> {
-    let JwtConfig { encoding_key, .. } = config;
-
-    let token = jsonwebtoken::encode(&Header::default(), auth, encoding_key);
-
+    let JwtConfig { encoding_key, algorithm, .. } = config;
+    let token = jsonwebtoken::encode(&Header::new(*algorithm), auth, encoding_key);
     token
 }
 
@@ -76,7 +64,7 @@ pub async fn bearer_validator(
     let config = req.app_data::<Data<JwtConfig>>().unwrap().get_ref();
 
     let auth =
-        decode_token(credentials.token(), config).map_err(|_e| ErrorInternalServerError(""))?;
+        decode_token(credentials.token(), config).map_err(|e| ErrorInternalServerError(e))?;
 
     req.extensions_mut().insert(auth);
 
