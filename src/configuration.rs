@@ -20,8 +20,8 @@ pub fn env_decoding_key() -> String {
     env::var("JWT_DECODING_KEY").expect("JWT_DECODING_KEY must be set")
 }
 
-pub fn env_jwt_algorithm() -> String {
-    env::var("JWT_ALGORITHM").expect("JWT_DECODING_KEY must be set")
+pub fn env_jwt_algorithm() -> Option<String> {
+    env::var("JWT_ALGORITHM").ok()
 }
 
 pub fn load_jwt_config() -> JwtConfig {
@@ -31,7 +31,10 @@ pub fn load_jwt_config() -> JwtConfig {
 
     let encoding_key = EncodingKey::from_base64_secret(&encoding_key).unwrap();
     let decoding_key = DecodingKey::from_base64_secret(&decoding_key).unwrap();
-    let algorithm = Algorithm::from_str(&algorithm).unwrap_or_default();
+    let algorithm = match algorithm {
+        None => Algorithm::default(),
+        Some(alg) => Algorithm::from_str(&alg).unwrap(),
+    };
 
     JwtConfig {
         encoding_key,
