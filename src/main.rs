@@ -61,6 +61,7 @@ pub fn configure_routes(cfg: &mut web::ServiceConfig) {
     .service(
         web::scope("/api")
             .wrap(HttpAuthentication::bearer(crate::auth::bearer_validator))
+            .route("/users/me", web::get().to(handlers::me))
             .route("/users/{user_id}", web::get().to(handlers::user))
             .route("/queues", web::post().to(handlers::queue_create))
             .route("/queues", web::get().to(handlers::queues))
