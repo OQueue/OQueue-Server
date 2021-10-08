@@ -9,6 +9,7 @@ use actix_web_httpauth::extractors::bearer::BearerAuth;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, TokenData, Validation};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use log;
 
 #[derive(Eq, PartialEq, Clone, Hash, Serialize, Deserialize, Debug)]
 pub struct Auth {
@@ -46,14 +47,18 @@ pub fn decode_token(token: &str, config: &JwtConfig) -> jsonwebtoken::errors::Re
         v
     };
 
+    log::trace!("Decoging token {}...", token);
     let token_data = jsonwebtoken::decode::<Auth>(token, decoding_key, &validation)?;
+    log::trace!("Decoging token {:?}... OK", token_data);
 
     Ok(token_data.claims)
 }
 
 pub fn encode_token(auth: &Auth, config: &JwtConfig) -> jsonwebtoken::errors::Result<String> {
+    log::trace!("Encoding token {:?}...", auth);
     let JwtConfig { encoding_key, algorithm, .. } = config;
     let token = jsonwebtoken::encode(&Header::new(*algorithm), auth, encoding_key);
+    log::trace!("Encoding token OK: {:?}...", &token);
     token
 }
 
@@ -61,11 +66,13 @@ pub async fn bearer_validator(
     req: ServiceRequest,
     credentials: BearerAuth,
 ) -> Result<ServiceRequest, actix_web::Error> {
+    log::trace!("try validate token: {}", credentials.token());
     let config = req.app_data::<Data<JwtConfig>>().unwrap().get_ref();
 
     let auth =
         decode_token(credentials.token(), config).map_err(|e| ErrorInternalServerError(e))?;
 
+    log::trace!("validation success: {}", credentials.token());
     req.extensions_mut().insert(auth);
 
     Ok(req)
