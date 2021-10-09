@@ -13,7 +13,7 @@ pub struct UserDao {
     pub pwhash: String,
 }
 
-#[derive(Clone, Debug, Queryable, Insertable)]
+#[derive(Clone, Debug, Eq, PartialEq, Queryable, Insertable)]
 #[table_name = "queues"]
 pub struct QueueDao {
     pub id: Uuid,

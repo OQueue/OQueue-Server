@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use uuid::Uuid;
@@ -72,12 +73,31 @@ pub fn queues_with_member(conn: &DbConnection, user_id: &Uuid) -> QueryResult<Ve
 
 pub fn available_queues(conn: &DbConnection, user_id: &Uuid) -> QueryResult<Vec<QueueDao>> {
     use crate::db::schema::*;
-    let queues = queues::table
+
+    let queues_with_organizer: Vec<QueueDao> = queues::table
+        .filter(queues::organizer_id.eq(user_id))
+        .load::<QueueDao>(conn)?;
+
+    let queues_with_members: Vec<(QueueDao, QueueEntryDao)> = queues::table
         .inner_join(queue_entries::table)
         .filter(queue_entries::user_id.eq(user_id))
-        .or_filter(queues::organizer_id.eq(user_id))
-        .load::<(QueueDao, QueueEntryDao)>(conn);
-    queues.map(|v| v.into_iter().map(|(q, _)| q).collect())
+        .load::<(QueueDao, QueueEntryDao)>(conn)?;
+
+    let mut queues = Vec::new();
+    let mut queues_uuids = HashSet::new();
+
+    let mut add_or_ignore = |q: QueueDao| {
+        let has_copy = queues_uuids.contains(&q.id);
+        if !has_copy {
+            queues_uuids.insert(q.id);
+            queues.push(q);
+        }
+    };
+
+    for q in queues_with_organizer { add_or_ignore(q); }
+    for (q, _) in queues_with_members { add_or_ignore(q); }
+
+    Ok(queues)
 }
 
 // ------------
