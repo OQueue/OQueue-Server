@@ -178,15 +178,6 @@ pub async fn queue_create(
 
     db.add_queue(&queue)?;
 
-    let me_entry = QueueEntryToAdd {
-        queue_id,
-        user_id: auth.id,
-        has_priority: false,
-        joined_at: now,
-    };
-
-    db.add_entry(&me_entry)?;
-
     Ok("")
 }
 
